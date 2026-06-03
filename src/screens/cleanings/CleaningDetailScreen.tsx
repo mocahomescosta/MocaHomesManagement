@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
+  View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Image,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { getCleaning, updateCleaningStatus, updateChecklist } from '../../services/cleanings.service';
-import { Cleaning, CleaningStatus, ChecklistItem } from '../../types';
+import { getCleaning, updateCleaningStatus, updateChecklist, addAreaPhoto } from '../../services/cleanings.service';
+import { uploadCleaningPhoto } from '../../services/photos.service';
+import { Cleaning, CleaningStatus, ChecklistItem, CleaningAreaPhoto } from '../../types';
 
 type RootStackParamList = {
   CleaningDetail: { cleaningId: string };
@@ -38,6 +39,7 @@ export default function CleaningDetailScreen() {
   const [cleaning, setCleaning] = useState<Cleaning | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [uploadingArea, setUploadingArea] = useState<string | null>(null);
 
   const load = () => {
     getCleaning(route.params.cleaningId).then(c => {
@@ -66,6 +68,55 @@ export default function CleaningDetailScreen() {
     );
     setCleaning(prev => prev ? { ...prev, checklist: updated } : null);
     await updateChecklist(cleaning.id, updated);
+  };
+
+  const handleTakePhoto = async (area: string) => {
+    if (!cleaning) return;
+
+    // Check if expo-image-picker is available
+    try {
+      const ImagePicker = await import('expo-image-picker');
+
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso denegado', 'Necesitas dar acceso a la cámara para tomar fotos.');
+        return;
+      }
+
+      setUploadingArea(area);
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.7,
+        aspect: [4, 3],
+      });
+
+      if (result.canceled || !result.assets[0]) {
+        setUploadingArea(null);
+        return;
+      }
+
+      const uri = result.assets[0].uri;
+      const photoURL = await uploadCleaningPhoto(cleaning.id, area, uri);
+      await addAreaPhoto(cleaning.id, area, photoURL);
+
+      // Update local state
+      const newPhoto: CleaningAreaPhoto = {
+        area,
+        photoURL,
+        uploadedAt: new Date().toISOString(),
+      };
+      setCleaning(prev => prev ? {
+        ...prev,
+        areaPhotos: [...(prev.areaPhotos ?? []), newPhoto],
+      } : null);
+
+    } catch (e: any) {
+      Alert.alert('Error al subir foto', e.message);
+    } finally {
+      setUploadingArea(null);
+    }
   };
 
   if (loading) return <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color="#2563eb" /></View>;
@@ -140,27 +191,80 @@ export default function CleaningDetailScreen() {
             />
           </View>
 
-          {Object.entries(groupedChecklist).map(([area, items]) => (
-            <View key={area} className="bg-white rounded-xl mb-2 overflow-hidden shadow-sm">
-              <View className="px-4 py-2 bg-gray-50 border-b border-gray-100">
-                <Text className="text-xs font-semibold text-gray-600">{area}</Text>
-              </View>
-              {(items as ChecklistItem[]).sort((a, b) => a.order - b.order).map(item => (
-                <TouchableOpacity
-                  key={item.id}
-                  className="flex-row items-center px-4 py-3 border-b border-gray-50"
-                  onPress={() => toggleChecklistItem(item.id)}
-                >
-                  <View className={`w-5 h-5 rounded border-2 mr-3 items-center justify-center ${item.completed ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
-                    {item.completed && <Text className="text-white text-xs">✓</Text>}
+          {Object.entries(groupedChecklist).map(([area, items]) => {
+            const areaCompleted = items.every(i => i.completed);
+            const areaPhoto = (cleaning.areaPhotos ?? []).find(p => p.area === area);
+            const isUploading = uploadingArea === area;
+
+            return (
+              <View key={area} className="bg-white rounded-xl mb-3 overflow-hidden shadow-sm">
+                {/* Area header */}
+                <View className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex-row justify-between items-center">
+                  <Text className="text-xs font-semibold text-gray-600">{area}</Text>
+                  {areaCompleted && (
+                    <Text className="text-xs text-green-600 font-medium">✓ Completado</Text>
+                  )}
+                </View>
+
+                {/* Checklist items */}
+                {items.sort((a, b) => a.order - b.order).map(item => (
+                  <TouchableOpacity
+                    key={item.id}
+                    className="flex-row items-center px-4 py-3 border-b border-gray-50"
+                    onPress={() => toggleChecklistItem(item.id)}
+                  >
+                    <View className={`w-5 h-5 rounded border-2 mr-3 items-center justify-center ${item.completed ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                      {item.completed && <Text className="text-white text-xs">✓</Text>}
+                    </View>
+                    <Text className={`flex-1 text-sm ${item.completed ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                      {item.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+
+                {/* Photo section — only shows when area is completed */}
+                {areaCompleted && (
+                  <View className="px-4 py-3 bg-blue-50 border-t border-blue-100">
+                    {areaPhoto ? (
+                      <View>
+                        <Text className="text-xs text-blue-600 font-medium mb-2">📷 Foto del área</Text>
+                        <Image
+                          source={{ uri: areaPhoto.photoURL }}
+                          className="w-full h-40 rounded-lg"
+                          resizeMode="cover"
+                        />
+                        <Text className="text-xs text-gray-400 mt-1">
+                          {new Date(areaPhoto.uploadedAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                        <TouchableOpacity
+                          className="mt-2 flex-row items-center gap-1"
+                          onPress={() => handleTakePhoto(area)}
+                          disabled={isUploading}
+                        >
+                          <Text className="text-xs text-blue-500">🔄 Volver a tomar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        className="flex-row items-center justify-center py-3 border-2 border-dashed border-blue-300 rounded-xl"
+                        onPress={() => handleTakePhoto(area)}
+                        disabled={isUploading}
+                      >
+                        {isUploading ? (
+                          <View className="flex-row items-center gap-2">
+                            <ActivityIndicator size="small" color="#2563eb" />
+                            <Text className="text-blue-600 text-sm">Subiendo foto...</Text>
+                          </View>
+                        ) : (
+                          <Text className="text-blue-600 text-sm font-medium">📷 Añadir foto de {area}</Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
                   </View>
-                  <Text className={`flex-1 text-sm ${item.completed ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                    {item.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          ))}
+                )}
+              </View>
+            );
+          })}
         </View>
       )}
 

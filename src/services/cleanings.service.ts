@@ -1,6 +1,6 @@
 import {
   collection, doc, getDocs, getDoc, addDoc, updateDoc,
-  serverTimestamp, query, orderBy, where, onSnapshot,
+  serverTimestamp, query, orderBy, where, onSnapshot, arrayUnion,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Cleaning, CleaningFormData, CleaningStatus } from '../types';
@@ -43,6 +43,22 @@ export const updateCleaningStatus = async (id: string, status: CleaningStatus): 
 
 export const updateChecklist = async (id: string, checklist: Cleaning['checklist']): Promise<void> => {
   await updateDoc(doc(db, COL, id), { checklist, updatedAt: serverTimestamp() });
+};
+
+export const addAreaPhoto = async (
+  cleaningId: string,
+  area: string,
+  photoURL: string
+): Promise<void> => {
+  const photo = {
+    area,
+    photoURL,
+    uploadedAt: new Date().toISOString(),
+  };
+  await updateDoc(doc(db, 'cleanings', cleaningId), {
+    areaPhotos: arrayUnion(photo),
+    updatedAt: serverTimestamp(),
+  });
 };
 
 export const subscribeToCleanings = (callback: (cleanings: Cleaning[]) => void) => {

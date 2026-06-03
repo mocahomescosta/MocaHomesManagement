@@ -56,6 +56,13 @@ export interface ChecklistItem {
   order: number;
   completed: boolean;
   notes: string;
+  photoURL?: string;
+}
+
+export interface CleaningAreaPhoto {
+  area: string;
+  photoURL: string;
+  uploadedAt: string; // ISO string
 }
 
 export interface CleaningIssue {
@@ -79,6 +86,7 @@ export interface Cleaning {
   completedAt: Timestamp | null;
   checklist: ChecklistItem[];
   issues: CleaningIssue[];
+  areaPhotos?: CleaningAreaPhoto[];
   notes: string;
   guestCheckout: string;
   guestCheckin: string;
