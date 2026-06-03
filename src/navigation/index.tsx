@@ -22,6 +22,7 @@ import InventoryListScreen from '../screens/inventory/InventoryListScreen';
 import InventoryFormScreen from '../screens/inventory/InventoryFormScreen';
 import UsersListScreen from '../screens/users/UsersListScreen';
 import UserDetailScreen from '../screens/users/UserDetailScreen';
+import ProfileScreen from '../screens/profile/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -67,6 +68,14 @@ function MaintenanceStack() {
       <Stack.Screen name="MaintenanceList" component={MaintenanceListScreen} options={{ title: 'Mantenimiento' }} />
       <Stack.Screen name="MaintenanceDetail" component={MaintenanceDetailScreen} options={{ title: 'Incidencia' }} />
       <Stack.Screen name="MaintenanceForm" component={MaintenanceFormScreen} options={({ route }: any) => ({ title: route.params?.itemId ? 'Editar' : 'Nueva incidencia' })} />
+    </Stack.Navigator>
+  );
+}
+
+function ProfileStack() {
+  return (
+    <Stack.Navigator screenOptions={HEADER_STYLE}>
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Mi perfil' }} />
     </Stack.Navigator>
   );
 }
@@ -159,6 +168,14 @@ function AppTabs() {
         options={{
           tabBarLabel: 'Usuarios',
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>👥</Text>,
+        }}
+      />
+      <Tab.Screen
+        name="ProfileTab"
+        component={ProfileStack}
+        options={{
+          tabBarLabel: 'Perfil',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>👤</Text>,
         }}
       />
     </Tab.Navigator>
