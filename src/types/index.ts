@@ -88,6 +88,40 @@ export interface Cleaning {
 
 export type CleaningFormData = Omit<Cleaning, 'id' | 'createdAt' | 'updatedAt' | 'startedAt' | 'completedAt'>;
 
+export type MaintenancePriority = 'baja' | 'media' | 'alta' | 'urgente';
+export type MaintenanceStatus = 'abierta' | 'en_progreso' | 'esperando_material' | 'resuelta' | 'cancelada';
+export type MaintenanceCategory = 'fontaneria' | 'electricidad' | 'electrodomestico' | 'muebles' | 'limpieza_profunda' | 'otro';
+
+export interface MaintenancePhoto {
+  id: string;
+  url: string;
+  uploadedAt: string;
+}
+
+export interface Maintenance {
+  id: string;
+  unitId: string;
+  unitName: string;
+  title: string;
+  description: string;
+  category: MaintenanceCategory;
+  priority: MaintenancePriority;
+  status: MaintenanceStatus;
+  assignedToId: string;
+  assignedToName: string;
+  reportedById: string;
+  reportedByName: string;
+  estimatedCost: number;
+  actualCost: number;
+  photos: MaintenancePhoto[];
+  notes: string;
+  resolvedAt: Timestamp | null;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+}
+
+export type MaintenanceFormData = Omit<Maintenance, 'id' | 'createdAt' | 'updatedAt' | 'resolvedAt'>;
+
 export interface AppUser {
   uid: string;
   name: string;

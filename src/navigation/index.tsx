@@ -11,6 +11,9 @@ import UnitFormScreen from '../screens/units/UnitFormScreen';
 import CleaningsListScreen from '../screens/cleanings/CleaningsListScreen';
 import CleaningDetailScreen from '../screens/cleanings/CleaningDetailScreen';
 import CleaningFormScreen from '../screens/cleanings/CleaningFormScreen';
+import MaintenanceListScreen from '../screens/maintenance/MaintenanceListScreen';
+import MaintenanceDetailScreen from '../screens/maintenance/MaintenanceDetailScreen';
+import MaintenanceFormScreen from '../screens/maintenance/MaintenanceFormScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -41,6 +44,16 @@ function CleaningsStack() {
   );
 }
 
+function MaintenanceStack() {
+  return (
+    <Stack.Navigator screenOptions={HEADER_STYLE}>
+      <Stack.Screen name="MaintenanceList" component={MaintenanceListScreen} options={{ title: 'Mantenimiento' }} />
+      <Stack.Screen name="MaintenanceDetail" component={MaintenanceDetailScreen} options={{ title: 'Incidencia' }} />
+      <Stack.Screen name="MaintenanceForm" component={MaintenanceFormScreen} options={({ route }: any) => ({ title: route.params?.itemId ? 'Editar' : 'Nueva incidencia' })} />
+    </Stack.Navigator>
+  );
+}
+
 function AppTabs() {
   return (
     <Tab.Navigator
@@ -65,6 +78,14 @@ function AppTabs() {
         options={{
           tabBarLabel: 'Limpiezas',
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🧹</Text>,
+        }}
+      />
+      <Tab.Screen
+        name="MantenimientoTab"
+        component={MaintenanceStack}
+        options={{
+          tabBarLabel: 'Mantenimiento',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🔧</Text>,
         }}
       />
     </Tab.Navigator>
