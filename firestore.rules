@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+
+    function isManager() {
+      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'Manager'];
+    }
+
+    match /users/{uid} {
+      allow read: if isAuth() && (request.auth.uid == uid || isManager());
+      allow write: if isManager();
+    }
+
+    match /units/{unitId} {
+      allow read: if isAuth();
+      allow write: if isManager();
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isAuth();
+      allow write: if isManager();
+    }
+
+    match /cleanings/{cleaningId} {
+      allow read: if isAuth();
+      allow write: if isAuth();
+    }
+
+    match /maintenance/{itemId} {
+      allow read: if isAuth();
+      allow write: if isAuth();
+    }
+  }
+}

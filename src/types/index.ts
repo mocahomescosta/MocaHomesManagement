@@ -122,6 +122,27 @@ export interface Maintenance {
 
 export type MaintenanceFormData = Omit<Maintenance, 'id' | 'createdAt' | 'updatedAt' | 'resolvedAt'>;
 
+export type BookingStatus = 'booked' | 'tentative' | 'declined' | 'canceled' | 'open_bill';
+export type BookingSource = 'airbnb' | 'booking' | 'vrbo' | 'direct' | 'other';
+
+export interface Booking {
+  id: string;
+  lodgifyBookingId: string;
+  lodgifyPropertyId: string;
+  unitId: string;
+  unitName: string;
+  arrivalDate: string;    // "2026-06-10"
+  departureDate: string;  // "2026-06-14"
+  status: BookingStatus;
+  source: BookingSource | string;
+  guests: number;
+  specialRequests: string;
+  guestName: string;
+  currencyCode: string;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+}
+
 export interface AppUser {
   uid: string;
   name: string;
