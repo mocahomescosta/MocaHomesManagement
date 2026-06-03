@@ -15,6 +15,11 @@ export const loginWithEmail = async (email: string, password: string) => {
     { lastLoginAt: serverTimestamp() },
     { merge: true }
   );
+  // Register push token after login
+  try {
+    const { registerPushToken } = await import('./notifications.service');
+    await registerPushToken(credential.user.uid);
+  } catch {}
   return credential.user;
 };
 

@@ -242,6 +242,151 @@ export const getLodgifyProperties = functions
 
 // ─── Default checklist for auto-created cleanings ─────────────────────────────
 
+// ─── Helper: send FCM notifications to a list of tokens ──────────────────────
+
+async function sendNotifications(
+  tokens: string[],
+  title: string,
+  body: string,
+  data?: Record<string, string>
+): Promise<void> {
+  if (!tokens.length) return;
+
+  const validTokens = tokens.filter(t => t.startsWith('ExponentPushToken') || t.startsWith('https://fcm'));
+
+  // Use Expo Push Notifications API for ExponentPushTokens
+  const expTokens = validTokens.filter(t => t.startsWith('ExponentPushToken'));
+  if (expTokens.length > 0) {
+    const messages = expTokens.map(to => ({ to, title, body, data: data ?? {}, sound: 'default' }));
+    try {
+      await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(messages),
+      });
+    } catch (e) {
+      functions.logger.warn('Expo push send failed', e);
+    }
+  }
+}
+
+async function getUserTokens(uid: string): Promise<string[]> {
+  const snap = await db.collection('users').doc(uid).get();
+  return snap.data()?.fcmTokens ?? [];
+}
+
+async function getTokensByRole(role: string): Promise<string[]> {
+  const snap = await db.collection('users')
+    .where('role', 'in', [role, 'Admin', 'Manager'])
+    .where('status', '==', 'active')
+    .get();
+  const tokens: string[] = [];
+  snap.docs.forEach(d => {
+    const t: string[] = d.data().fcmTokens ?? [];
+    tokens.push(...t);
+  });
+  return [...new Set(tokens)];
+}
+
+// ─── Trigger: cleaning assigned → notify the assigned cleaner ─────────────────
+
+export const onCleaningAssigned = functions.firestore
+  .document('cleanings/{cleaningId}')
+  .onWrite(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    if (!after) return;
+
+    // Notify when assignedToId is set or changed
+    const assigneeChanged = after.assignedToId && after.assignedToId !== before?.assignedToId;
+    if (!assigneeChanged) return;
+
+    const tokens = await getUserTokens(after.assignedToId);
+    await sendNotifications(
+      tokens,
+      '🧹 Nueva limpieza asignada',
+      `${after.unitName} · ${after.scheduledDate} a las ${after.scheduledTime}`,
+      { type: 'cleaning', cleaningId: context.params.cleaningId }
+    );
+  });
+
+// ─── Trigger: urgent maintenance created → notify managers ────────────────────
+
+export const onUrgentMaintenance = functions.firestore
+  .document('maintenance/{itemId}')
+  .onWrite(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    if (!after) return;
+
+    // Only fire when priority becomes 'urgente' and status is 'abierta'
+    const becameUrgent = after.priority === 'urgente' &&
+      (before?.priority !== 'urgente' || !change.before.exists);
+
+    if (!becameUrgent) return;
+
+    const tokens = await getTokensByRole('Manager');
+    await sendNotifications(
+      tokens,
+      '🚨 Mantenimiento urgente',
+      `${after.unitName}: ${after.title}`,
+      { type: 'maintenance', itemId: context.params.itemId }
+    );
+  });
+
+// ─── Scheduled: daily briefing at 8:00 AM → notify managers ──────────────────
+
+export const dailyBriefing = functions.pubsub
+  .schedule('0 8 * * *')
+  .timeZone('Europe/Madrid')
+  .onRun(async () => {
+    const today = new Date().toISOString().split('T')[0];
+
+    // Count today's cleanings
+    const cleaningsSnap = await db.collection('cleanings')
+      .where('scheduledDate', '==', today)
+      .where('status', '!=', 'cancelada')
+      .get();
+
+    // Count today's checkouts
+    const checkoutsSnap = await db.collection('bookings')
+      .where('departureDate', '==', today)
+      .where('status', 'in', ['booked', 'open_bill'])
+      .get();
+
+    const cleaningCount = cleaningsSnap.size;
+    const checkoutCount = checkoutsSnap.size;
+
+    if (cleaningCount === 0 && checkoutCount === 0) return;
+
+    const body = [
+      cleaningCount > 0 ? `🧹 ${cleaningCount} limpieza${cleaningCount > 1 ? 's' : ''}` : null,
+      checkoutCount > 0 ? `🚪 ${checkoutCount} salida${checkoutCount > 1 ? 's' : ''}` : null,
+    ].filter(Boolean).join(' · ');
+
+    const tokens = await getTokensByRole('Manager');
+    await sendNotifications(tokens, '📊 Resumen del día', body, { type: 'daily_briefing' });
+  });
+
+// ─── Trigger: booking created/confirmed → notify managers ────────────────────
+
+export const onNewBooking = functions.firestore
+  .document('bookings/{bookingId}')
+  .onCreate(async (snap, context) => {
+    const booking = snap.data();
+    if (!['booked', 'open_bill'].includes(booking.status)) return;
+
+    const tokens = await getTokensByRole('Manager');
+    await sendNotifications(
+      tokens,
+      '📅 Nueva reserva',
+      `${booking.unitName} · ${booking.arrivalDate} → ${booking.departureDate}`,
+      { type: 'booking', bookingId: context.params.bookingId }
+    );
+  });
+
+// ─── Default checklist for auto-created cleanings ─────────────────────────────
+
 const DEFAULT_CHECKLIST = [
   { id: '1', name: 'Cambiar ropa de cama', area: 'Dormitorio', order: 1, completed: false, notes: '' },
   { id: '2', name: 'Limpiar y desinfectar baño', area: 'Baño', order: 2, completed: false, notes: '' },
