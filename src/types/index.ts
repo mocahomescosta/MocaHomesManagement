@@ -46,6 +46,48 @@ export interface Unit {
 
 export type UnitFormData = Omit<Unit, 'id' | 'createdAt' | 'updatedAt'>;
 
+export type CleaningStatus = 'pendiente' | 'en_curso' | 'completada' | 'verificada' | 'incidencia';
+export type CleaningType = 'checkout' | 'mantenimiento' | 'extra';
+
+export interface ChecklistItem {
+  id: string;
+  name: string;
+  area: string;
+  order: number;
+  completed: boolean;
+  notes: string;
+}
+
+export interface CleaningIssue {
+  id: string;
+  description: string;
+  photoURL: string;
+  reportedAt: Timestamp | null;
+}
+
+export interface Cleaning {
+  id: string;
+  unitId: string;
+  unitName: string;
+  assignedToId: string;
+  assignedToName: string;
+  type: CleaningType;
+  status: CleaningStatus;
+  scheduledDate: string;
+  scheduledTime: string;
+  startedAt: Timestamp | null;
+  completedAt: Timestamp | null;
+  checklist: ChecklistItem[];
+  issues: CleaningIssue[];
+  notes: string;
+  guestCheckout: string;
+  guestCheckin: string;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+}
+
+export type CleaningFormData = Omit<Cleaning, 'id' | 'createdAt' | 'updatedAt' | 'startedAt' | 'completedAt'>;
+
 export interface AppUser {
   uid: string;
   name: string;
