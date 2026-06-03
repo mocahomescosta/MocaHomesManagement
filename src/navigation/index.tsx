@@ -18,6 +18,8 @@ import BookingsListScreen from '../screens/bookings/BookingsListScreen';
 import BookingDetailScreen from '../screens/bookings/BookingDetailScreen';
 import LodgifyMappingScreen from '../screens/bookings/LodgifyMappingScreen';
 import DashboardScreen from '../screens/dashboard/DashboardScreen';
+import InventoryListScreen from '../screens/inventory/InventoryListScreen';
+import InventoryFormScreen from '../screens/inventory/InventoryFormScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -44,6 +46,15 @@ function CleaningsStack() {
       <Stack.Screen name="CleaningsList" component={CleaningsListScreen} options={{ title: 'Limpiezas' }} />
       <Stack.Screen name="CleaningDetail" component={CleaningDetailScreen} options={{ title: 'Detalle' }} />
       <Stack.Screen name="CleaningForm" component={CleaningFormScreen} options={({ route }: any) => ({ title: route.params?.cleaningId ? 'Editar limpieza' : 'Nueva limpieza' })} />
+    </Stack.Navigator>
+  );
+}
+
+function InventoryStack() {
+  return (
+    <Stack.Navigator screenOptions={HEADER_STYLE}>
+      <Stack.Screen name="InventoryList" component={InventoryListScreen} options={{ title: 'Inventario' }} />
+      <Stack.Screen name="InventoryForm" component={InventoryFormScreen} options={({ route }: any) => ({ title: route.params?.itemId ? 'Editar artículo' : 'Nuevo artículo' })} />
     </Stack.Navigator>
   );
 }
@@ -113,6 +124,14 @@ function AppTabs() {
         options={{
           tabBarLabel: 'Limpiezas',
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🧹</Text>,
+        }}
+      />
+      <Tab.Screen
+        name="InventarioTab"
+        component={InventoryStack}
+        options={{
+          tabBarLabel: 'Inventario',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>📦</Text>,
         }}
       />
       <Tab.Screen

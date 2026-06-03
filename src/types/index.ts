@@ -143,6 +143,28 @@ export interface Booking {
   updatedAt: Timestamp | null;
 }
 
+export type InventoryCategory = 'higiene' | 'cocina' | 'limpieza' | 'ropa_hogar' | 'otro';
+export type StockLevel = 'ok' | 'bajo' | 'agotado';
+
+export interface InventoryItem {
+  id: string;
+  unitId: string;
+  unitName: string;
+  name: string;
+  category: InventoryCategory;
+  currentStock: number;
+  minStock: number;
+  unit: string;
+  stockLevel: StockLevel;
+  notes: string;
+  lastUpdatedById: string;
+  lastUpdatedByName: string;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+}
+
+export type InventoryItemFormData = Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt' | 'stockLevel'>;
+
 export interface AppUser {
   uid: string;
   name: string;
