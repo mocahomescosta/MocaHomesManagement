@@ -14,6 +14,9 @@ import CleaningFormScreen from '../screens/cleanings/CleaningFormScreen';
 import MaintenanceListScreen from '../screens/maintenance/MaintenanceListScreen';
 import MaintenanceDetailScreen from '../screens/maintenance/MaintenanceDetailScreen';
 import MaintenanceFormScreen from '../screens/maintenance/MaintenanceFormScreen';
+import BookingsListScreen from '../screens/bookings/BookingsListScreen';
+import BookingDetailScreen from '../screens/bookings/BookingDetailScreen';
+import LodgifyMappingScreen from '../screens/bookings/LodgifyMappingScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -54,6 +57,16 @@ function MaintenanceStack() {
   );
 }
 
+function BookingsStack() {
+  return (
+    <Stack.Navigator screenOptions={HEADER_STYLE}>
+      <Stack.Screen name="BookingsList" component={BookingsListScreen} options={{ title: 'Reservas' }} />
+      <Stack.Screen name="BookingDetail" component={BookingDetailScreen} options={{ title: 'Reserva' }} />
+      <Stack.Screen name="LodgifyMapping" component={LodgifyMappingScreen} options={{ title: 'Configurar Lodgify' }} />
+    </Stack.Navigator>
+  );
+}
+
 function AppTabs() {
   return (
     <Tab.Navigator
@@ -70,6 +83,14 @@ function AppTabs() {
         options={{
           tabBarLabel: 'Apartamentos',
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🏠</Text>,
+        }}
+      />
+      <Tab.Screen
+        name="ReservasTab"
+        component={BookingsStack}
+        options={{
+          tabBarLabel: 'Reservas',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>📅</Text>,
         }}
       />
       <Tab.Screen
