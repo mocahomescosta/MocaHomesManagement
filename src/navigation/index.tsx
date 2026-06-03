@@ -20,6 +20,8 @@ import LodgifyMappingScreen from '../screens/bookings/LodgifyMappingScreen';
 import DashboardScreen from '../screens/dashboard/DashboardScreen';
 import InventoryListScreen from '../screens/inventory/InventoryListScreen';
 import InventoryFormScreen from '../screens/inventory/InventoryFormScreen';
+import UsersListScreen from '../screens/users/UsersListScreen';
+import UserDetailScreen from '../screens/users/UserDetailScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -65,6 +67,15 @@ function MaintenanceStack() {
       <Stack.Screen name="MaintenanceList" component={MaintenanceListScreen} options={{ title: 'Mantenimiento' }} />
       <Stack.Screen name="MaintenanceDetail" component={MaintenanceDetailScreen} options={{ title: 'Incidencia' }} />
       <Stack.Screen name="MaintenanceForm" component={MaintenanceFormScreen} options={({ route }: any) => ({ title: route.params?.itemId ? 'Editar' : 'Nueva incidencia' })} />
+    </Stack.Navigator>
+  );
+}
+
+function UsersStack() {
+  return (
+    <Stack.Navigator screenOptions={HEADER_STYLE}>
+      <Stack.Screen name="UsersList" component={UsersListScreen} options={{ title: 'Equipo' }} />
+      <Stack.Screen name="UserDetail" component={UserDetailScreen} options={{ title: 'Perfil' }} />
     </Stack.Navigator>
   );
 }
@@ -140,6 +151,14 @@ function AppTabs() {
         options={{
           tabBarLabel: 'Mantenimiento',
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🔧</Text>,
+        }}
+      />
+      <Tab.Screen
+        name="UsuariosTab"
+        component={UsersStack}
+        options={{
+          tabBarLabel: 'Usuarios',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>👥</Text>,
         }}
       />
     </Tab.Navigator>
