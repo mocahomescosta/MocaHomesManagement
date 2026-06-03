@@ -160,6 +160,31 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* Telegram link status */}
+      <View className="bg-white mx-4 mt-3 rounded-xl p-4 shadow-sm">
+        <Text className="text-xs font-semibold text-gray-500 mb-3">TELEGRAM</Text>
+        {(profile as any).telegramChatId ? (
+          <View className="flex-row items-center gap-2">
+            <View className="w-2.5 h-2.5 rounded-full bg-green-500" />
+            <Text className="text-sm text-gray-700">Cuenta vinculada</Text>
+          </View>
+        ) : (
+          <View>
+            <View className="flex-row items-center gap-2 mb-2">
+              <View className="w-2.5 h-2.5 rounded-full bg-gray-300" />
+              <Text className="text-sm text-gray-500">Sin vincular</Text>
+            </View>
+            <View className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+              <Text className="text-xs text-blue-700 font-medium mb-1">Para recibir notificaciones en Telegram:</Text>
+              <Text className="text-xs text-blue-600 leading-4">
+                1. Abre Telegram y busca <Text className="font-mono font-bold">@MocaHomesBot</Text>{'\n'}
+                2. Escribe: <Text className="font-mono font-bold">/vincular {profile.email}</Text>
+              </Text>
+            </View>
+          </View>
+        )}
+      </View>
+
       {/* Notification preferences */}
       <View className="bg-white mx-4 mt-3 rounded-xl p-4 shadow-sm">
         <Text className="text-xs font-semibold text-gray-500 mb-3">NOTIFICACIONES</Text>

@@ -387,6 +387,224 @@ export const onNewBooking = functions.firestore
 
 // ─── Default checklist for auto-created cleanings ─────────────────────────────
 
+// ─── Telegram helpers ─────────────────────────────────────────────────────────
+
+async function sendTelegram(chatId: string | number, text: string): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN ?? '';
+  if (!token) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: 'HTML',
+      }),
+    });
+  } catch (e) {
+    functions.logger.warn('Telegram send failed', e);
+  }
+}
+
+async function sendTelegramGroup(text: string): Promise<void> {
+  const groupId = process.env.TELEGRAM_GROUP_CHAT_ID ?? '';
+  if (!groupId) return;
+  await sendTelegram(groupId, text);
+}
+
+async function getUserTelegramId(uid: string): Promise<string | null> {
+  if (!uid) return null;
+  const snap = await db.collection('users').doc(uid).get();
+  return snap.data()?.telegramChatId ?? null;
+}
+
+// ─── Webhook: receive Telegram bot commands ───────────────────────────────────
+
+export const telegramWebhook = functions
+  .runWith({ secrets: ['TELEGRAM_BOT_TOKEN'] })
+  .https.onRequest(async (req, res) => {
+    if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
+
+    const update = req.body;
+    const message = update?.message;
+
+    if (!message || !message.text) { res.status(200).send('OK'); return; }
+
+    const chatId = message.chat.id;
+    const text: string = message.text.trim();
+    const firstName = message.from?.first_name ?? '';
+
+    // /start command
+    if (text === '/start') {
+      await sendTelegram(chatId,
+        `👋 Hola ${firstName}!\n\nSoy el bot de <b>Moca Homes</b>.\n\nPara vincular tu cuenta escribe:\n<code>/vincular tu@email.com</code>`
+      );
+      res.status(200).send('OK');
+      return;
+    }
+
+    // /vincular email command
+    if (text.startsWith('/vincular')) {
+      const parts = text.split(' ');
+      const email = parts[1]?.toLowerCase().trim();
+
+      if (!email || !email.includes('@')) {
+        await sendTelegram(chatId, '❌ Formato incorrecto.\n\nUsa: <code>/vincular tu@email.com</code>');
+        res.status(200).send('OK');
+        return;
+      }
+
+      // Find user by email in Firestore
+      const snap = await db.collection('users')
+        .where('email', '==', email)
+        .limit(1)
+        .get();
+
+      if (snap.empty) {
+        await sendTelegram(chatId, `❌ No se encontró ninguna cuenta con el email <b>${email}</b>.\n\nContacta con tu manager.`);
+        res.status(200).send('OK');
+        return;
+      }
+
+      const userDoc = snap.docs[0];
+      await userDoc.ref.update({
+        telegramChatId: String(chatId),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      await sendTelegram(chatId,
+        `✅ ¡Cuenta vinculada correctamente!\n\n👤 <b>${userDoc.data().name}</b>\n📧 ${email}\n\nA partir de ahora recibirás notificaciones aquí.`
+      );
+
+      res.status(200).send('OK');
+      return;
+    }
+
+    // Unknown command
+    await sendTelegram(chatId, `No entiendo ese comando.\n\nUsa <code>/vincular tu@email.com</code> para vincular tu cuenta.`);
+    res.status(200).send('OK');
+  });
+
+// ─── Trigger: cleaning assigned → Telegram to cleaner + group ────────────────
+
+export const onCleaningAssignedTelegram = functions
+  .runWith({ secrets: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_GROUP_CHAT_ID'] })
+  .firestore.document('cleanings/{cleaningId}')
+  .onWrite(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    if (!after) return;
+
+    const assigneeChanged = after.assignedToId && after.assignedToId !== before?.assignedToId;
+    if (!assigneeChanged) return;
+
+    // Private message to the assigned cleaner
+    const cleanerTelegramId = await getUserTelegramId(after.assignedToId);
+    if (cleanerTelegramId) {
+      await sendTelegram(cleanerTelegramId,
+        `🧹 <b>Nueva limpieza asignada</b>\n\n🏠 ${after.unitName}\n📅 ${after.scheduledDate} a las ${after.scheduledTime}\n🚪 Salida huésped: ${after.guestCheckout || 'N/A'}\n🏠 Entrada huésped: ${after.guestCheckin || 'N/A'}${after.notes ? `\n📝 ${after.notes}` : ''}`
+      );
+    }
+
+    // Group notification
+    await sendTelegramGroup(
+      `🧹 Limpieza asignada a <b>${after.assignedToName}</b>\n🏠 ${after.unitName} · ${after.scheduledDate} ${after.scheduledTime}`
+    );
+  });
+
+// ─── Trigger: cleaning completed → group notification ────────────────────────
+
+export const onCleaningCompletedTelegram = functions
+  .runWith({ secrets: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_GROUP_CHAT_ID'] })
+  .firestore.document('cleanings/{cleaningId}')
+  .onWrite(async (change) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    if (!after) return;
+
+    const justCompleted = after.status === 'completada' && before?.status !== 'completada';
+    if (!justCompleted) return;
+
+    await sendTelegramGroup(
+      `✅ <b>Limpieza completada</b>\n🏠 ${after.unitName}${after.assignedToName ? `\n👤 ${after.assignedToName}` : ''}`
+    );
+  });
+
+// ─── Trigger: urgent maintenance → group + assigned technician ───────────────
+
+export const onUrgentMaintenanceTelegram = functions
+  .runWith({ secrets: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_GROUP_CHAT_ID'] })
+  .firestore.document('maintenance/{itemId}')
+  .onWrite(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    if (!after) return;
+
+    const becameUrgent = after.priority === 'urgente' && before?.priority !== 'urgente';
+    if (!becameUrgent) return;
+
+    // Group alert
+    await sendTelegramGroup(
+      `🚨 <b>Mantenimiento URGENTE</b>\n🏠 ${after.unitName}\n🔧 ${after.title}${after.description ? `\n📝 ${after.description}` : ''}${after.assignedToName ? `\n👤 Asignado: ${after.assignedToName}` : ''}`
+    );
+
+    // Private to assigned technician if exists
+    if (after.assignedToId) {
+      const techTelegramId = await getUserTelegramId(after.assignedToId);
+      if (techTelegramId) {
+        await sendTelegram(techTelegramId,
+          `🚨 <b>Incidencia urgente asignada</b>\n🏠 ${after.unitName}\n🔧 ${after.title}${after.description ? `\n📝 ${after.description}` : ''}`
+        );
+      }
+    }
+  });
+
+// ─── Trigger: new Lodgify booking → group notification ───────────────────────
+
+export const onNewBookingTelegram = functions
+  .runWith({ secrets: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_GROUP_CHAT_ID'] })
+  .firestore.document('bookings/{bookingId}')
+  .onCreate(async (snap) => {
+    const booking = snap.data();
+    if (!['booked', 'open_bill'].includes(booking.status)) return;
+
+    const sourceLabels: Record<string, string> = {
+      airbnb: 'Airbnb 🏡', booking: 'Booking.com 🔵', vrbo: 'VRBO 🏠',
+      direct: 'Directo 📱',
+    };
+    const source = sourceLabels[booking.source] ?? booking.source;
+
+    await sendTelegramGroup(
+      `📅 <b>Nueva reserva</b>\n🏠 ${booking.unitName}\n${source}\n📆 ${booking.arrivalDate} → ${booking.departureDate}\n👥 ${booking.guests} huéspedes${booking.specialRequests ? `\n⚠️ ${booking.specialRequests}` : ''}`
+    );
+  });
+
+// ─── Trigger: maintenance assigned → private message to technician ───────────
+
+export const onMaintenanceAssignedTelegram = functions
+  .runWith({ secrets: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_GROUP_CHAT_ID'] })
+  .firestore.document('maintenance/{itemId}')
+  .onWrite(async (change) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    if (!after) return;
+
+    const assigneeChanged = after.assignedToId && after.assignedToId !== before?.assignedToId;
+    if (!assigneeChanged) return;
+
+    const techTelegramId = await getUserTelegramId(after.assignedToId);
+    if (!techTelegramId) return;
+
+    const priorityLabels: Record<string, string> = {
+      urgente: '🔴 Urgente', alta: '🟠 Alta', media: '🟡 Media', baja: '⚪ Baja',
+    };
+
+    await sendTelegram(techTelegramId,
+      `🔧 <b>Nueva tarea de mantenimiento</b>\n🏠 ${after.unitName}\n📋 ${after.title}\n${priorityLabels[after.priority] ?? after.priority}${after.description ? `\n📝 ${after.description}` : ''}`
+    );
+  });
+
 const DEFAULT_CHECKLIST = [
   { id: '1', name: 'Cambiar ropa de cama', area: 'Dormitorio', order: 1, completed: false, notes: '' },
   { id: '2', name: 'Limpiar y desinfectar baño', area: 'Baño', order: 2, completed: false, notes: '' },

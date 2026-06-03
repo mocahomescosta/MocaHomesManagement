@@ -182,6 +182,7 @@ export interface AppUser {
   status: UserStatus;
   profilePictureURL: string;
   fcmTokens: string[];
+  telegramChatId?: string;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
   lastLoginAt: Timestamp | null;
