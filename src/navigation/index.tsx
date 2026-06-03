@@ -17,6 +17,7 @@ import MaintenanceFormScreen from '../screens/maintenance/MaintenanceFormScreen'
 import BookingsListScreen from '../screens/bookings/BookingsListScreen';
 import BookingDetailScreen from '../screens/bookings/BookingDetailScreen';
 import LodgifyMappingScreen from '../screens/bookings/LodgifyMappingScreen';
+import DashboardScreen from '../screens/dashboard/DashboardScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -77,6 +78,19 @@ function AppTabs() {
         tabBarStyle: { borderTopColor: '#e5e7eb' },
       }}
     >
+      <Tab.Screen
+        name="DashboardTab"
+        component={DashboardScreen}
+        options={{
+          tabBarLabel: 'Inicio',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>📊</Text>,
+          headerShown: true,
+          headerStyle: { backgroundColor: '#2563eb' },
+          headerTintColor: '#fff',
+          headerTitleStyle: { fontWeight: '600' as const },
+          headerTitle: 'Dashboard',
+        }}
+      />
       <Tab.Screen
         name="UnitsTab"
         component={UnitsStack}
