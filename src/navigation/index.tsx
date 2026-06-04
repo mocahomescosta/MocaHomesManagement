@@ -22,6 +22,7 @@ import InventoryListScreen from '../screens/inventory/InventoryListScreen';
 import InventoryFormScreen from '../screens/inventory/InventoryFormScreen';
 import UsersListScreen from '../screens/users/UsersListScreen';
 import UserDetailScreen from '../screens/users/UserDetailScreen';
+import AddUserScreen from '../screens/users/AddUserScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
@@ -83,8 +84,20 @@ function ProfileStack() {
 function UsersStack() {
   return (
     <Stack.Navigator screenOptions={HEADER_STYLE}>
-      <Stack.Screen name="UsersList" component={UsersListScreen} options={{ title: 'Equipo' }} />
+      <Stack.Screen
+        name="UsersList"
+        component={UsersListScreen}
+        options={({ navigation }: any) => ({
+          title: 'Equipo',
+          headerRight: () => (
+            <TouchableOpacity onPress={() => navigation.navigate('AddUser')} style={{ marginRight: 4 }}>
+              <Text style={{ color: '#fff', fontSize: 28, lineHeight: 32 }}>+</Text>
+            </TouchableOpacity>
+          ),
+        })}
+      />
       <Stack.Screen name="UserDetail" component={UserDetailScreen} options={{ title: 'Perfil' }} />
+      <Stack.Screen name="AddUser" component={AddUserScreen} options={{ title: 'Nuevo miembro' }} />
     </Stack.Navigator>
   );
 }

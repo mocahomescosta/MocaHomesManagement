@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import { loginWithEmail } from '../../services/auth.service';
 
@@ -37,8 +38,17 @@ export default function LoginScreen() {
       className="flex-1 bg-white"
     >
       <View className="flex-1 justify-center px-8">
-        <Text className="text-3xl font-bold text-blue-600 mb-2">Moca Homes</Text>
-        <Text className="text-gray-500 mb-10">Gestión de apartamentos turísticos</Text>
+
+        {/* Logo centrado arriba */}
+        <View className="items-center mb-10">
+          <Image
+            source={require('../../../assets/logo.png')}
+            style={{ width: 120, height: 120, resizeMode: 'contain' }}
+            onError={() => {}}
+          />
+          <Text className="text-3xl font-bold text-blue-600 mt-3">Moca Homes</Text>
+          <Text className="text-gray-500 mt-1">Gestión de apartamentos turísticos</Text>
+        </View>
 
         <Text className="text-sm font-medium text-gray-700 mb-1">Email</Text>
         <TextInput
