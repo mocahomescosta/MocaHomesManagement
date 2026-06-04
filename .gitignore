@@ -1,0 +1,18 @@
+# Environment variables — NUNCA subir a Git
+.env
+.env.local
+.env.production
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Node
+node_modules/
+functions/node_modules/
+functions/lib/
+
+# OS
+.DS_Store
+*.log
