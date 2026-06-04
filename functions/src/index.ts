@@ -400,7 +400,7 @@ async function sendTelegram(chatId: string | number, text: string): Promise<void
   functions.logger.info('sendTelegram token present:', !!token, 'chatId:', chatId);
   if (!token) { functions.logger.error('TELEGRAM_BOT_TOKEN is empty!'); return; }
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -409,8 +409,10 @@ async function sendTelegram(chatId: string | number, text: string): Promise<void
         parse_mode: 'HTML',
       }),
     });
+    const result = await response.json() as any;
+    functions.logger.info('Telegram sendMessage response:', JSON.stringify(result));
   } catch (e) {
-    functions.logger.warn('Telegram send failed', e);
+    functions.logger.error('Telegram send failed', e);
   }
 }
 
