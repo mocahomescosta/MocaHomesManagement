@@ -297,7 +297,7 @@ async function getTokensByRole(role: string): Promise<string[]> {
 // ─── Trigger: cleaning assigned → notify the assigned cleaner ─────────────────
 
 export const onCleaningAssigned = onDocumentWritten(
-  { document: 'cleanings/{cleaningId}', region: 'eur3' },
+  { document: 'cleanings/{cleaningId}', region: 'europe-west1' },
   async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
@@ -319,7 +319,7 @@ export const onCleaningAssigned = onDocumentWritten(
 // ─── Trigger: urgent maintenance created → notify managers ────────────────────
 
 export const onUrgentMaintenance = onDocumentWritten(
-  { document: 'maintenance/{itemId}', region: 'eur3' },
+  { document: 'maintenance/{itemId}', region: 'europe-west1' },
   async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
@@ -376,7 +376,7 @@ export const dailyBriefing = onSchedule(
 // ─── Trigger: booking created/confirmed → notify managers ────────────────────
 
 export const onNewBooking = onDocumentCreated(
-  { document: 'bookings/{bookingId}', region: 'eur3' },
+  { document: 'bookings/{bookingId}', region: 'europe-west1' },
   async (event) => {
     const booking = event.data?.data();
     if (!booking || !['booked', 'open_bill'].includes(booking.status)) return;
@@ -495,7 +495,7 @@ export const telegramWebhook = functions
 // ─── Trigger: cleaning assigned → Telegram to cleaner + group ────────────────
 
 export const onCleaningAssignedTelegram = onDocumentWritten(
-  { document: 'cleanings/{cleaningId}', region: 'eur3', secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID] },
+  { document: 'cleanings/{cleaningId}', region: 'europe-west1', secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID] },
   async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
@@ -519,7 +519,7 @@ export const onCleaningAssignedTelegram = onDocumentWritten(
 // ─── Trigger: cleaning completed → group notification ────────────────────────
 
 export const onCleaningCompletedTelegram = onDocumentWritten(
-  { document: 'cleanings/{cleaningId}', region: 'eur3', secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID] },
+  { document: 'cleanings/{cleaningId}', region: 'europe-west1', secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID] },
   async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
@@ -537,7 +537,7 @@ export const onCleaningCompletedTelegram = onDocumentWritten(
 // ─── Trigger: urgent maintenance → group + assigned technician ───────────────
 
 export const onUrgentMaintenanceTelegram = onDocumentWritten(
-  { document: 'maintenance/{itemId}', region: 'eur3', secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID] },
+  { document: 'maintenance/{itemId}', region: 'europe-west1', secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID] },
   async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
@@ -564,7 +564,7 @@ export const onUrgentMaintenanceTelegram = onDocumentWritten(
 // ─── Trigger: new Lodgify booking → group notification ───────────────────────
 
 export const onNewBookingTelegram = onDocumentCreated(
-  { document: 'bookings/{bookingId}', region: 'eur3', secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID] },
+  { document: 'bookings/{bookingId}', region: 'europe-west1', secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID] },
   async (event) => {
     const booking = event.data?.data();
     if (!booking || !['booked', 'open_bill'].includes(booking.status)) return;
@@ -584,7 +584,7 @@ export const onNewBookingTelegram = onDocumentCreated(
 // ─── Trigger: maintenance assigned → private message to technician ───────────
 
 export const onMaintenanceAssignedTelegram = onDocumentWritten(
-  { document: 'maintenance/{itemId}', region: 'eur3', secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID] },
+  { document: 'maintenance/{itemId}', region: 'europe-west1', secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID] },
   async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
