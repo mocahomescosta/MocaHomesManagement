@@ -1,6 +1,12 @@
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
+import { onDocumentWritten, onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { defineSecret } from 'firebase-functions/params';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
+
+const TELEGRAM_BOT_TOKEN = defineSecret('TELEGRAM_BOT_TOKEN');
+const TELEGRAM_GROUP_CHAT_ID = defineSecret('TELEGRAM_GROUP_CHAT_ID');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -290,16 +296,13 @@ async function getTokensByRole(role: string): Promise<string[]> {
 
 // ─── Trigger: cleaning assigned → notify the assigned cleaner ─────────────────
 
-const euFunctions = functions.region('europe-west1');
-
-export const onCleaningAssigned = euFunctions.firestore
-  .document('cleanings/{cleaningId}')
-  .onWrite(async (change, context) => {
-    const before = change.before.data();
-    const after = change.after.data();
+export const onCleaningAssigned = onDocumentWritten(
+  { document: 'cleanings/{cleaningId}', region: 'eur3' },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
     if (!after) return;
 
-    // Notify when assignedToId is set or changed
     const assigneeChanged = after.assignedToId && after.assignedToId !== before?.assignedToId;
     if (!assigneeChanged) return;
 
@@ -308,22 +311,22 @@ export const onCleaningAssigned = euFunctions.firestore
       tokens,
       '🧹 Nueva limpieza asignada',
       `${after.unitName} · ${after.scheduledDate} a las ${after.scheduledTime}`,
-      { type: 'cleaning', cleaningId: context.params.cleaningId }
+      { type: 'cleaning', cleaningId: event.params.cleaningId }
     );
-  });
+  }
+);
 
 // ─── Trigger: urgent maintenance created → notify managers ────────────────────
 
-export const onUrgentMaintenance = euFunctions.firestore
-  .document('maintenance/{itemId}')
-  .onWrite(async (change, context) => {
-    const before = change.before.data();
-    const after = change.after.data();
+export const onUrgentMaintenance = onDocumentWritten(
+  { document: 'maintenance/{itemId}', region: 'eur3' },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
     if (!after) return;
 
-    // Only fire when priority becomes 'urgente' and status is 'abierta'
     const becameUrgent = after.priority === 'urgente' &&
-      (before?.priority !== 'urgente' || !change.before.exists);
+      (before?.priority !== 'urgente' || !event.data?.before.exists);
 
     if (!becameUrgent) return;
 
@@ -332,16 +335,16 @@ export const onUrgentMaintenance = euFunctions.firestore
       tokens,
       '🚨 Mantenimiento urgente',
       `${after.unitName}: ${after.title}`,
-      { type: 'maintenance', itemId: context.params.itemId }
+      { type: 'maintenance', itemId: event.params.itemId }
     );
-  });
+  }
+);
 
 // ─── Scheduled: daily briefing at 8:00 AM → notify managers ──────────────────
 
-export const dailyBriefing = functions.pubsub
-  .schedule('0 8 * * *')
-  .timeZone('Europe/Madrid')
-  .onRun(async () => {
+export const dailyBriefing = onSchedule(
+  { schedule: '0 8 * * *', timeZone: 'Europe/Madrid' },
+  async () => {
     const today = new Date().toISOString().split('T')[0];
 
     // Count today's cleanings
@@ -372,20 +375,21 @@ export const dailyBriefing = functions.pubsub
 
 // ─── Trigger: booking created/confirmed → notify managers ────────────────────
 
-export const onNewBooking = euFunctions.firestore
-  .document('bookings/{bookingId}')
-  .onCreate(async (snap, context) => {
-    const booking = snap.data();
-    if (!['booked', 'open_bill'].includes(booking.status)) return;
+export const onNewBooking = onDocumentCreated(
+  { document: 'bookings/{bookingId}', region: 'eur3' },
+  async (event) => {
+    const booking = event.data?.data();
+    if (!booking || !['booked', 'open_bill'].includes(booking.status)) return;
 
     const tokens = await getTokensByRole('Manager');
     await sendNotifications(
       tokens,
       '📅 Nueva reserva',
       `${booking.unitName} · ${booking.arrivalDate} → ${booking.departureDate}`,
-      { type: 'booking', bookingId: context.params.bookingId }
+      { type: 'booking', bookingId: event.params.bookingId }
     );
-  });
+  }
+);
 
 // ─── Default checklist for auto-created cleanings ─────────────────────────────
 
@@ -490,39 +494,35 @@ export const telegramWebhook = functions
 
 // ─── Trigger: cleaning assigned → Telegram to cleaner + group ────────────────
 
-export const onCleaningAssignedTelegram = euFunctions
-  .runWith({ secrets: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_GROUP_CHAT_ID'] })
-  .firestore.document('cleanings/{cleaningId}')
-  .onWrite(async (change, context) => {
-    const before = change.before.data();
-    const after = change.after.data();
+export const onCleaningAssignedTelegram = onDocumentWritten(
+  { document: 'cleanings/{cleaningId}', region: 'eur3', secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID] },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
     if (!after) return;
 
     const assigneeChanged = after.assignedToId && after.assignedToId !== before?.assignedToId;
     if (!assigneeChanged) return;
 
-    // Private message to the assigned cleaner
     const cleanerTelegramId = await getUserTelegramId(after.assignedToId);
     if (cleanerTelegramId) {
       await sendTelegram(cleanerTelegramId,
         `🧹 <b>Nueva limpieza asignada</b>\n\n🏠 ${after.unitName}\n📅 ${after.scheduledDate} a las ${after.scheduledTime}\n🚪 Salida huésped: ${after.guestCheckout || 'N/A'}\n🏠 Entrada huésped: ${after.guestCheckin || 'N/A'}${after.notes ? `\n📝 ${after.notes}` : ''}`
       );
     }
-
-    // Group notification
     await sendTelegramGroup(
       `🧹 Limpieza asignada a <b>${after.assignedToName}</b>\n🏠 ${after.unitName} · ${after.scheduledDate} ${after.scheduledTime}`
     );
-  });
+  }
+);
 
 // ─── Trigger: cleaning completed → group notification ────────────────────────
 
-export const onCleaningCompletedTelegram = euFunctions
-  .runWith({ secrets: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_GROUP_CHAT_ID'] })
-  .firestore.document('cleanings/{cleaningId}')
-  .onWrite(async (change) => {
-    const before = change.before.data();
-    const after = change.after.data();
+export const onCleaningCompletedTelegram = onDocumentWritten(
+  { document: 'cleanings/{cleaningId}', region: 'eur3', secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID] },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
     if (!after) return;
 
     const justCompleted = after.status === 'completada' && before?.status !== 'completada';
@@ -531,27 +531,25 @@ export const onCleaningCompletedTelegram = euFunctions
     await sendTelegramGroup(
       `✅ <b>Limpieza completada</b>\n🏠 ${after.unitName}${after.assignedToName ? `\n👤 ${after.assignedToName}` : ''}`
     );
-  });
+  }
+);
 
 // ─── Trigger: urgent maintenance → group + assigned technician ───────────────
 
-export const onUrgentMaintenanceTelegram = euFunctions
-  .runWith({ secrets: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_GROUP_CHAT_ID'] })
-  .firestore.document('maintenance/{itemId}')
-  .onWrite(async (change, context) => {
-    const before = change.before.data();
-    const after = change.after.data();
+export const onUrgentMaintenanceTelegram = onDocumentWritten(
+  { document: 'maintenance/{itemId}', region: 'eur3', secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID] },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
     if (!after) return;
 
     const becameUrgent = after.priority === 'urgente' && before?.priority !== 'urgente';
     if (!becameUrgent) return;
 
-    // Group alert
     await sendTelegramGroup(
       `🚨 <b>Mantenimiento URGENTE</b>\n🏠 ${after.unitName}\n🔧 ${after.title}${after.description ? `\n📝 ${after.description}` : ''}${after.assignedToName ? `\n👤 Asignado: ${after.assignedToName}` : ''}`
     );
 
-    // Private to assigned technician if exists
     if (after.assignedToId) {
       const techTelegramId = await getUserTelegramId(after.assignedToId);
       if (techTelegramId) {
@@ -560,16 +558,16 @@ export const onUrgentMaintenanceTelegram = euFunctions
         );
       }
     }
-  });
+  }
+);
 
 // ─── Trigger: new Lodgify booking → group notification ───────────────────────
 
-export const onNewBookingTelegram = euFunctions
-  .runWith({ secrets: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_GROUP_CHAT_ID'] })
-  .firestore.document('bookings/{bookingId}')
-  .onCreate(async (snap) => {
-    const booking = snap.data();
-    if (!['booked', 'open_bill'].includes(booking.status)) return;
+export const onNewBookingTelegram = onDocumentCreated(
+  { document: 'bookings/{bookingId}', region: 'eur3', secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID] },
+  async (event) => {
+    const booking = event.data?.data();
+    if (!booking || !['booked', 'open_bill'].includes(booking.status)) return;
 
     const sourceLabels: Record<string, string> = {
       airbnb: 'Airbnb 🏡', booking: 'Booking.com 🔵', vrbo: 'VRBO 🏠',
@@ -580,16 +578,16 @@ export const onNewBookingTelegram = euFunctions
     await sendTelegramGroup(
       `📅 <b>Nueva reserva</b>\n🏠 ${booking.unitName}\n${source}\n📆 ${booking.arrivalDate} → ${booking.departureDate}\n👥 ${booking.guests} huéspedes${booking.specialRequests ? `\n⚠️ ${booking.specialRequests}` : ''}`
     );
-  });
+  }
+);
 
 // ─── Trigger: maintenance assigned → private message to technician ───────────
 
-export const onMaintenanceAssignedTelegram = euFunctions
-  .runWith({ secrets: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_GROUP_CHAT_ID'] })
-  .firestore.document('maintenance/{itemId}')
-  .onWrite(async (change) => {
-    const before = change.before.data();
-    const after = change.after.data();
+export const onMaintenanceAssignedTelegram = onDocumentWritten(
+  { document: 'maintenance/{itemId}', region: 'eur3', secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_GROUP_CHAT_ID] },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
     if (!after) return;
 
     const assigneeChanged = after.assignedToId && after.assignedToId !== before?.assignedToId;
@@ -605,7 +603,8 @@ export const onMaintenanceAssignedTelegram = euFunctions
     await sendTelegram(techTelegramId,
       `🔧 <b>Nueva tarea de mantenimiento</b>\n🏠 ${after.unitName}\n📋 ${after.title}\n${priorityLabels[after.priority] ?? after.priority}${after.description ? `\n📝 ${after.description}` : ''}`
     );
-  });
+  }
+);
 
 const DEFAULT_CHECKLIST = [
   { id: '1', name: 'Cambiar ropa de cama', area: 'Dormitorio', order: 1, completed: false, notes: '' },
