@@ -367,7 +367,55 @@ export const syncLodgifyHourly = onScheduleV2(
   }
 );
 
-// ─── Default checklist for auto-created cleanings ─────────────────────────────
+// ─── HTTP: import Lodgify properties as units in Firestore ────────────────────
+
+export const importLodgifyProperties = functions
+  .runWith({ secrets: ['LODGIFY_API_KEY'] })
+  .https.onCall(async (_data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Auth required');
+
+    const apiKey = process.env.LODGIFY_API_KEY ?? '';
+    const response = await fetch('https://api.lodgify.com/v2/properties', {
+      headers: { 'X-ApiKey': apiKey, 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      throw new functions.https.HttpsError('internal', `Lodgify API error: ${response.status}`);
+    }
+
+    const properties = await response.json() as any[];
+    let created = 0;
+    let skipped = 0;
+
+    for (const prop of (Array.isArray(properties) ? properties : [])) {
+      const existing = await db.collection('units')
+        .where('lodgifyPropertyId', '==', String(prop.id))
+        .limit(1).get();
+
+      if (!existing.empty) { skipped++; continue; }
+
+      await db.collection('units').add({
+        name: prop.name ?? `Propiedad ${prop.id}`,
+        lodgifyPropertyId: String(prop.id),
+        status: 'listo',
+        address: {
+          street: prop.address?.street ?? '',
+          city: prop.address?.city ?? '',
+          country: prop.address?.country_code ?? 'ES',
+        },
+        bedrooms: prop.bedrooms ?? 1,
+        bathrooms: prop.bathrooms ?? 1,
+        maxGuests: prop.guests_max ?? prop.people_max ?? 2,
+        amenities: [],
+        images: prop.images?.map((img: any) => img.url ?? img.src ?? img) ?? [],
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      created++;
+    }
+
+    return { created, skipped };
+  });
 
 // ─── Helper: send FCM notifications to a list of tokens ──────────────────────
 

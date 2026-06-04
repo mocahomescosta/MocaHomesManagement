@@ -1,13 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useUnits } from '../../hooks/useUnits';
 import { Unit, UnitStatus } from '../../types';
 
@@ -62,6 +64,29 @@ function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
 export default function UnitsListScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { units, loading } = useUnits();
+  const [importing, setImporting] = useState(false);
+
+  const handleImportFromLodgify = async () => {
+    Alert.alert(
+      'Importar desde Lodgify',
+      'Se crearán los apartamentos que tengas en Lodgify y no existan aún en la app. ¿Continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Importar', onPress: async () => {
+          setImporting(true);
+          try {
+            const fn = httpsCallable(getFunctions(), 'importLodgifyProperties');
+            const result = await fn({}) as any;
+            Alert.alert('Importación completa', `${result.data.created} apartamentos creados, ${result.data.skipped} ya existían`);
+          } catch (e: any) {
+            Alert.alert('Error', e.message ?? 'No se pudo importar');
+          } finally {
+            setImporting(false);
+          }
+        }},
+      ]
+    );
+  };
 
   if (loading) {
     return (
@@ -91,6 +116,18 @@ export default function UnitsListScreen() {
         }
         contentContainerStyle={{ paddingBottom: 100 }}
       />
+
+      {/* Import from Lodgify */}
+      <TouchableOpacity
+        className="absolute bottom-6 left-6 bg-white border border-gray-200 px-4 h-14 rounded-full items-center justify-center shadow-md flex-row gap-2"
+        onPress={handleImportFromLodgify}
+        disabled={importing}
+      >
+        {importing
+          ? <ActivityIndicator color="#2563eb" size="small" />
+          : <Text className="text-blue-600 font-semibold">🏠 Importar Lodgify</Text>
+        }
+      </TouchableOpacity>
 
       <TouchableOpacity
         className="absolute bottom-6 right-6 bg-blue-600 w-14 h-14 rounded-full items-center justify-center shadow-lg"
