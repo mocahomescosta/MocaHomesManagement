@@ -290,7 +290,9 @@ async function getTokensByRole(role: string): Promise<string[]> {
 
 // ─── Trigger: cleaning assigned → notify the assigned cleaner ─────────────────
 
-export const onCleaningAssigned = functions.firestore
+const euFunctions = functions.region('europe-west1');
+
+export const onCleaningAssigned = euFunctions.firestore
   .document('cleanings/{cleaningId}')
   .onWrite(async (change, context) => {
     const before = change.before.data();
@@ -312,7 +314,7 @@ export const onCleaningAssigned = functions.firestore
 
 // ─── Trigger: urgent maintenance created → notify managers ────────────────────
 
-export const onUrgentMaintenance = functions.firestore
+export const onUrgentMaintenance = euFunctions.firestore
   .document('maintenance/{itemId}')
   .onWrite(async (change, context) => {
     const before = change.before.data();
@@ -370,7 +372,7 @@ export const dailyBriefing = functions.pubsub
 
 // ─── Trigger: booking created/confirmed → notify managers ────────────────────
 
-export const onNewBooking = functions.firestore
+export const onNewBooking = euFunctions.firestore
   .document('bookings/{bookingId}')
   .onCreate(async (snap, context) => {
     const booking = snap.data();
@@ -488,7 +490,7 @@ export const telegramWebhook = functions
 
 // ─── Trigger: cleaning assigned → Telegram to cleaner + group ────────────────
 
-export const onCleaningAssignedTelegram = functions
+export const onCleaningAssignedTelegram = euFunctions
   .runWith({ secrets: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_GROUP_CHAT_ID'] })
   .firestore.document('cleanings/{cleaningId}')
   .onWrite(async (change, context) => {
@@ -515,7 +517,7 @@ export const onCleaningAssignedTelegram = functions
 
 // ─── Trigger: cleaning completed → group notification ────────────────────────
 
-export const onCleaningCompletedTelegram = functions
+export const onCleaningCompletedTelegram = euFunctions
   .runWith({ secrets: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_GROUP_CHAT_ID'] })
   .firestore.document('cleanings/{cleaningId}')
   .onWrite(async (change) => {
@@ -533,7 +535,7 @@ export const onCleaningCompletedTelegram = functions
 
 // ─── Trigger: urgent maintenance → group + assigned technician ───────────────
 
-export const onUrgentMaintenanceTelegram = functions
+export const onUrgentMaintenanceTelegram = euFunctions
   .runWith({ secrets: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_GROUP_CHAT_ID'] })
   .firestore.document('maintenance/{itemId}')
   .onWrite(async (change, context) => {
@@ -562,7 +564,7 @@ export const onUrgentMaintenanceTelegram = functions
 
 // ─── Trigger: new Lodgify booking → group notification ───────────────────────
 
-export const onNewBookingTelegram = functions
+export const onNewBookingTelegram = euFunctions
   .runWith({ secrets: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_GROUP_CHAT_ID'] })
   .firestore.document('bookings/{bookingId}')
   .onCreate(async (snap) => {
@@ -582,7 +584,7 @@ export const onNewBookingTelegram = functions
 
 // ─── Trigger: maintenance assigned → private message to technician ───────────
 
-export const onMaintenanceAssignedTelegram = functions
+export const onMaintenanceAssignedTelegram = euFunctions
   .runWith({ secrets: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_GROUP_CHAT_ID'] })
   .firestore.document('maintenance/{itemId}')
   .onWrite(async (change) => {
