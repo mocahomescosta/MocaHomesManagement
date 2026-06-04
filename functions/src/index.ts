@@ -383,11 +383,15 @@ export const importLodgifyProperties = functions
       throw new functions.https.HttpsError('internal', `Lodgify API error: ${response.status}`);
     }
 
-    const properties = await response.json() as any[];
+    const raw = await response.json() as any;
+    // Lodgify may return { items: [...] } or plain array
+    const properties: any[] = Array.isArray(raw) ? raw : (raw?.items ?? raw?.data ?? raw?.properties ?? []);
     let created = 0;
     let skipped = 0;
 
-    for (const prop of (Array.isArray(properties) ? properties : [])) {
+    functions.logger.info('Lodgify properties raw keys:', Object.keys(raw ?? {}), 'count:', properties.length);
+
+    for (const prop of properties) {
       const existing = await db.collection('units')
         .where('lodgifyPropertyId', '==', String(prop.id))
         .limit(1).get();
