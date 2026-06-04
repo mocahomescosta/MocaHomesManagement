@@ -246,6 +246,127 @@ export const getLodgifyProperties = functions
     return data2;
   });
 
+// ─── HTTP: manual sync Lodgify bookings (callable) ────────────────────────────
+
+export const syncLodgifyBookings = functions
+  .runWith({ secrets: ['LODGIFY_API_KEY'], timeoutSeconds: 120 })
+  .https.onCall(async (_data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Auth required');
+
+    const apiKey = process.env.LODGIFY_API_KEY ?? '';
+    let synced = 0;
+
+    try {
+      const response = await fetch('https://api.lodgify.com/v2/reservations?includeCount=true&size=50&page=1', {
+        headers: { 'X-ApiKey': apiKey, 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        throw new functions.https.HttpsError('internal', `Lodgify API error: ${response.status}`);
+      }
+
+      const data = await response.json() as any;
+      const reservations = data.items ?? data ?? [];
+
+      for (const r of reservations) {
+        const unit = await resolveUnitId(r.property_id ?? r.propertyId);
+        const arrivalDate = (r.arrival ?? r.date_arrival ?? '').split('T')[0];
+        const departureDate = (r.departure ?? r.date_departure ?? '').split('T')[0];
+        const status = r.status ?? 'booked';
+        const source = r.source ?? r.channel_name ?? 'direct';
+        const guests = r.guest_count ?? r.people ?? 0;
+
+        if (!arrivalDate || !departureDate) continue;
+
+        const bookingRef = db.collection('bookings').doc(String(r.id));
+        const bookingData = {
+          lodgifyBookingId: String(r.id),
+          lodgifyPropertyId: String(r.property_id ?? r.propertyId ?? ''),
+          unitId: unit?.unitId ?? '',
+          unitName: unit?.unitName ?? r.property_name ?? '',
+          arrivalDate,
+          departureDate,
+          status,
+          source,
+          guests,
+          guestName: r.guest?.name ?? r.guest_name ?? '',
+          specialRequests: r.special_requests ?? '',
+          currencyCode: r.currency_code ?? 'EUR',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        const snap = await bookingRef.get();
+        if (!snap.exists) {
+          await bookingRef.set({ ...bookingData, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+        } else {
+          await bookingRef.update(bookingData);
+        }
+        synced++;
+      }
+    } catch (e: any) {
+      functions.logger.error('syncLodgifyBookings error', e);
+      throw new functions.https.HttpsError('internal', e.message);
+    }
+
+    return { synced };
+  });
+
+// ─── Scheduled: sync Lodgify bookings every hour ──────────────────────────────
+
+import { onSchedule as onScheduleV2 } from 'firebase-functions/v2/scheduler';
+
+export const syncLodgifyHourly = onScheduleV2(
+  { schedule: '0 * * * *', timeZone: 'Europe/Madrid', secrets: ['LODGIFY_API_KEY'] },
+  async () => {
+    const apiKey = process.env.LODGIFY_API_KEY ?? '';
+    if (!apiKey) return;
+
+    try {
+      const response = await fetch('https://api.lodgify.com/v2/reservations?includeCount=true&size=50&page=1', {
+        headers: { 'X-ApiKey': apiKey, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) { functions.logger.warn('Lodgify sync failed', response.status); return; }
+
+      const data = await response.json() as any;
+      const reservations = data.items ?? data ?? [];
+
+      for (const r of reservations) {
+        const unit = await resolveUnitId(r.property_id ?? r.propertyId);
+        const arrivalDate = (r.arrival ?? r.date_arrival ?? '').split('T')[0];
+        const departureDate = (r.departure ?? r.date_departure ?? '').split('T')[0];
+        if (!arrivalDate || !departureDate) continue;
+
+        const bookingRef = db.collection('bookings').doc(String(r.id));
+        const bookingData = {
+          lodgifyBookingId: String(r.id),
+          lodgifyPropertyId: String(r.property_id ?? r.propertyId ?? ''),
+          unitId: unit?.unitId ?? '',
+          unitName: unit?.unitName ?? r.property_name ?? '',
+          arrivalDate,
+          departureDate,
+          status: r.status ?? 'booked',
+          source: r.source ?? r.channel_name ?? 'direct',
+          guests: r.guest_count ?? r.people ?? 0,
+          guestName: r.guest?.name ?? r.guest_name ?? '',
+          specialRequests: r.special_requests ?? '',
+          currencyCode: r.currency_code ?? 'EUR',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        const snap = await bookingRef.get();
+        if (!snap.exists) {
+          await bookingRef.set({ ...bookingData, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+        } else {
+          await bookingRef.update(bookingData);
+        }
+      }
+      functions.logger.info(`Lodgify hourly sync: ${reservations.length} reservations processed`);
+    } catch (e) {
+      functions.logger.error('syncLodgifyHourly error', e);
+    }
+  }
+);
+
 // ─── Default checklist for auto-created cleanings ─────────────────────────────
 
 // ─── Helper: send FCM notifications to a list of tokens ──────────────────────

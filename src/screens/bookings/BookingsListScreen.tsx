@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useBookings } from '../../hooks/useBookings';
 import { Booking, BookingStatus } from '../../types';
 
@@ -65,6 +66,20 @@ export default function BookingsListScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<Nav>>();
   const { bookings, loading } = useBookings();
   const [filter, setFilter] = useState<FilterStatus>('activas');
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const fn = httpsCallable(getFunctions(), 'syncLodgifyBookings');
+      const result = await fn({}) as any;
+      Alert.alert('Sincronización completa', `${result.data.synced} reservas actualizadas`);
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'No se pudo sincronizar');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const filtered = bookings.filter(b => {
     if (filter === 'activas') return ['booked', 'tentative', 'open_bill'].includes(b.status);
@@ -104,6 +119,18 @@ export default function BookingsListScreen() {
         }
         contentContainerStyle={{ paddingBottom: 100 }}
       />
+
+      {/* Sync button */}
+      <TouchableOpacity
+        className="absolute bottom-6 left-6 bg-blue-600 px-4 h-14 rounded-full items-center justify-center shadow-md flex-row gap-2"
+        onPress={handleSync}
+        disabled={syncing}
+      >
+        {syncing
+          ? <ActivityIndicator color="white" size="small" />
+          : <Text className="text-white font-semibold">🔄 Sincronizar Lodgify</Text>
+        }
+      </TouchableOpacity>
 
       {/* Config button */}
       <TouchableOpacity
