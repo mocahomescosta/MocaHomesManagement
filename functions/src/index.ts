@@ -397,7 +397,8 @@ export const onNewBooking = onDocumentCreated(
 
 async function sendTelegram(chatId: string | number, text: string): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN ?? '';
-  if (!token) return;
+  functions.logger.info('sendTelegram token present:', !!token, 'chatId:', chatId);
+  if (!token) { functions.logger.error('TELEGRAM_BOT_TOKEN is empty!'); return; }
   try {
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
