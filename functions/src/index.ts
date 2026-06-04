@@ -257,7 +257,7 @@ export const syncLodgifyBookings = functions
     let synced = 0;
 
     try {
-      const response = await fetch('https://api.lodgify.com/v2/reservations?includeCount=true&size=50&page=1', {
+      const response = await fetch('https://api.lodgify.com/v2/reservations/bookings?includeCount=true&size=50&page=1', {
         headers: { 'X-ApiKey': apiKey, 'Content-Type': 'application/json' },
       });
 
@@ -322,7 +322,7 @@ export const syncLodgifyHourly = onScheduleV2(
     if (!apiKey) return;
 
     try {
-      const response = await fetch('https://api.lodgify.com/v2/reservations?includeCount=true&size=50&page=1', {
+      const response = await fetch('https://api.lodgify.com/v2/reservations/bookings?includeCount=true&size=50&page=1', {
         headers: { 'X-ApiKey': apiKey, 'Content-Type': 'application/json' },
       });
       if (!response.ok) { functions.logger.warn('Lodgify sync failed', response.status); return; }
