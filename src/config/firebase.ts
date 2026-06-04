@@ -15,12 +15,17 @@ const firebaseConfig = {
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-export const auth = getApps().length === 1
-  ? initializeAuth(app, {
+function createAuth() {
+  try {
+    return initializeAuth(app, {
       persistence: getReactNativePersistence(AsyncStorage),
-    })
-  : getAuth(app);
+    });
+  } catch {
+    return getAuth(app);
+  }
+}
 
+export const auth = createAuth();
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export default app;
