@@ -15,8 +15,9 @@ const ROLE_CONFIG: Record<UserRole, { label: string; color: string }> = {
   Technician: { label: 'Técnico',       color: '#d97706' },
 };
 
-function getInitials(name: string): string {
-  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+function getInitials(name?: string): string {
+  if (!name) return '?';
+  return name.split(' ').map(w => w[0]).filter(Boolean).join('').toUpperCase().slice(0, 2);
 }
 
 export default function ProfileScreen() {

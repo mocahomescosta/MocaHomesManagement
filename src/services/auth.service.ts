@@ -5,11 +5,19 @@ import firebase from 'firebase/compat/app';
 
 export const loginWithEmail = async (email: string, password: string) => {
   const credential = await auth.signInWithEmailAndPassword(email, password);
-  await setDoc(
-    doc(db, 'users', credential.user!.uid),
-    { lastLoginAt: serverTimestamp() },
-    { merge: true }
-  );
+  const uid = credential.user!.uid;
+  const snap = await getDoc(doc(db, 'users', uid));
+  if (!snap.exists()) {
+    await setDoc(doc(db, 'users', uid), {
+      email,
+      name: email.split('@')[0],
+      role: 'Admin',
+      createdAt: serverTimestamp(),
+      lastLoginAt: serverTimestamp(),
+    });
+  } else {
+    await setDoc(doc(db, 'users', uid), { lastLoginAt: serverTimestamp() }, { merge: true });
+  }
   try {
     const { registerPushToken } = await import('./notifications.service');
     await registerPushToken(credential.user!.uid);
