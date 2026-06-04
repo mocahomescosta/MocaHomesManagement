@@ -173,6 +173,25 @@ export interface InventoryItem {
 
 export type InventoryItemFormData = Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt' | 'stockLevel'>;
 
+export type MaintenanceFrequency = 'semanal' | 'quincenal' | 'mensual' | 'trimestral' | 'semestral' | 'anual';
+
+export interface PeriodicMaintenance {
+  id: string;
+  unitId: string;
+  unitName: string;
+  title: string;
+  description: string;
+  category: MaintenanceCategory;
+  frequency: MaintenanceFrequency;
+  nextDate: Timestamp | any;
+  lastCompletedDate: Timestamp | null;
+  assignedToId: string;
+  assignedToName: string;
+  active: boolean;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+}
+
 export interface AppUser {
   uid: string;
   name: string;

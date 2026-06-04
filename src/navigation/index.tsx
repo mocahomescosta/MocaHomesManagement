@@ -14,6 +14,7 @@ import CleaningFormScreen from '../screens/cleanings/CleaningFormScreen';
 import MaintenanceListScreen from '../screens/maintenance/MaintenanceListScreen';
 import MaintenanceDetailScreen from '../screens/maintenance/MaintenanceDetailScreen';
 import MaintenanceFormScreen from '../screens/maintenance/MaintenanceFormScreen';
+import PeriodicFormScreen from '../screens/maintenance/PeriodicFormScreen';
 import BookingsListScreen from '../screens/bookings/BookingsListScreen';
 import BookingDetailScreen from '../screens/bookings/BookingDetailScreen';
 import LodgifyMappingScreen from '../screens/bookings/LodgifyMappingScreen';
@@ -69,6 +70,7 @@ function MaintenanceStack() {
       <Stack.Screen name="MaintenanceList" component={MaintenanceListScreen} options={{ title: 'Mantenimiento' }} />
       <Stack.Screen name="MaintenanceDetail" component={MaintenanceDetailScreen} options={{ title: 'Incidencia' }} />
       <Stack.Screen name="MaintenanceForm" component={MaintenanceFormScreen} options={({ route }: any) => ({ title: route.params?.itemId ? 'Editar' : 'Nueva incidencia' })} />
+      <Stack.Screen name="PeriodicForm" component={PeriodicFormScreen} options={({ route }: any) => ({ title: route.params?.itemId ? 'Editar periódico' : 'Nuevo periódico' })} />
     </Stack.Navigator>
   );
 }
