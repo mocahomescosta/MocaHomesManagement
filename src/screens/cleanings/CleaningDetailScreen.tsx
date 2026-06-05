@@ -277,10 +277,10 @@ export default function CleaningDetailScreen() {
       ) : null}
 
       {/* Issues */}
-      {cleaning.issues.length > 0 && (
+      {(cleaning.issues ?? []).length > 0 && (
         <View className="bg-white mx-4 mt-3 rounded-xl p-4 shadow-sm">
-          <Text className="text-xs font-semibold text-red-500 mb-2">INCIDENCIAS ({cleaning.issues.length})</Text>
-          {cleaning.issues.map(issue => (
+          <Text className="text-xs font-semibold text-red-500 mb-2">INCIDENCIAS ({(cleaning.issues ?? []).length})</Text>
+          {(cleaning.issues ?? []).map(issue => (
             <View key={issue.id} className="mb-2">
               <Text className="text-sm text-gray-700">{issue.description}</Text>
             </View>
