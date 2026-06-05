@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, Modal, FlatList,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { createCleaning, updateCleaning, getCleaning } from '../../services/cleanings.service';
 import { getUnits } from '../../services/units.service';
-import { CleaningFormData, CleaningType, Unit } from '../../types';
+import { getUsers } from '../../services/users.service';
+import { CleaningFormData, CleaningType, Unit, AppUser } from '../../types';
 
 type RootStackParamList = {
   CleaningForm: { cleaningId?: string };
@@ -27,6 +28,15 @@ const DEFAULT_CHECKLIST = [
   { id: '6', name: 'Sacar basura', area: 'General', order: 6, completed: false, notes: '' },
   { id: '7', name: 'Revisar inventario', area: 'General', order: 7, completed: false, notes: '' },
 ];
+
+const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const DAYS = ['L','M','X','J','V','S','D'];
+
+const TIMES = Array.from({ length: 49 }, (_, i) => {
+  const h = Math.floor(i / 2);
+  const m = i % 2 === 0 ? '00' : '30';
+  return `${String(h).padStart(2, '0')}:${m}`;
+});
 
 const today = new Date().toISOString().split('T')[0];
 
@@ -55,17 +65,159 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Input({ value, onChangeText, placeholder }: { value: string; onChangeText: (v: string) => void; placeholder?: string }) {
+// ─── Mini calendar ────────────────────────────────────────────────────────────
+function CalendarPicker({ value, onChange }: { value: string; onChange: (d: string) => void }) {
+  const [visible, setVisible] = useState(false);
+  const parsed = value ? new Date(value + 'T12:00:00') : new Date();
+  const [viewYear, setViewYear] = useState(parsed.getFullYear());
+  const [viewMonth, setViewMonth] = useState(parsed.getMonth());
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDay = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7; // Mon=0
+
+  const select = (day: number) => {
+    const d = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    onChange(d);
+    setVisible(false);
+  };
+
+  const prevMonth = () => { if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); } else setViewMonth(m => m - 1); };
+  const nextMonth = () => { if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0); } else setViewMonth(m => m + 1); };
+
+  const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+
+  const selDay = value === `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}` ? parsed.getDate() : -1;
+
   return (
-    <TextInput
-      className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-800 bg-white"
-      value={value}
-      onChangeText={onChangeText}
-      placeholder={placeholder}
-    />
+    <>
+      <TouchableOpacity
+        className="border border-gray-300 rounded-lg px-3 py-2.5 bg-white flex-row justify-between items-center"
+        onPress={() => setVisible(true)}
+      >
+        <Text className="text-sm text-gray-800">{value || 'Seleccionar fecha'}</Text>
+        <Text className="text-gray-400">📅</Text>
+      </TouchableOpacity>
+
+      <Modal visible={visible} transparent animationType="fade">
+        <TouchableOpacity className="flex-1 bg-black/40 justify-center items-center" activeOpacity={1} onPress={() => setVisible(false)}>
+          <TouchableOpacity activeOpacity={1} className="bg-white rounded-2xl p-4 w-80">
+            {/* Header */}
+            <View className="flex-row justify-between items-center mb-3">
+              <TouchableOpacity onPress={prevMonth} className="p-2"><Text className="text-lg text-blue-600">‹</Text></TouchableOpacity>
+              <Text className="text-sm font-semibold text-gray-800">{MONTHS[viewMonth]} {viewYear}</Text>
+              <TouchableOpacity onPress={nextMonth} className="p-2"><Text className="text-lg text-blue-600">›</Text></TouchableOpacity>
+            </View>
+            {/* Day names */}
+            <View className="flex-row mb-1">
+              {DAYS.map(d => <Text key={d} className="flex-1 text-center text-xs font-medium text-gray-400">{d}</Text>)}
+            </View>
+            {/* Days grid */}
+            <View className="flex-row flex-wrap">
+              {cells.map((day, i) => (
+                <View key={i} style={{ width: '14.28%', aspectRatio: 1, padding: 2 }}>
+                  {day ? (
+                    <TouchableOpacity
+                      className={`flex-1 rounded-full items-center justify-center ${day === selDay ? 'bg-blue-600' : ''}`}
+                      onPress={() => select(day)}
+                    >
+                      <Text className={`text-sm ${day === selDay ? 'text-white font-semibold' : 'text-gray-700'}`}>{day}</Text>
+                    </TouchableOpacity>
+                  ) : <View className="flex-1" />}
+                </View>
+              ))}
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    </>
   );
 }
 
+// ─── Time picker ──────────────────────────────────────────────────────────────
+function TimePicker({ value, onChange }: { value: string; onChange: (t: string) => void }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <>
+      <TouchableOpacity
+        className="border border-gray-300 rounded-lg px-3 py-2.5 bg-white flex-row justify-between items-center"
+        onPress={() => setVisible(true)}
+      >
+        <Text className="text-sm text-gray-800">{value || 'Hora'}</Text>
+        <Text className="text-gray-400">🕐</Text>
+      </TouchableOpacity>
+      <Modal visible={visible} transparent animationType="fade">
+        <TouchableOpacity className="flex-1 bg-black/40 justify-center items-center" activeOpacity={1} onPress={() => setVisible(false)}>
+          <TouchableOpacity activeOpacity={1} className="bg-white rounded-2xl w-40 overflow-hidden" style={{ maxHeight: 300 }}>
+            <Text className="text-center text-sm font-semibold text-gray-700 py-3 border-b border-gray-100">Hora</Text>
+            <FlatList
+              data={TIMES}
+              keyExtractor={t => t}
+              getItemLayout={(_, i) => ({ length: 44, offset: 44 * i, index: i })}
+              initialScrollIndex={Math.max(0, TIMES.indexOf(value))}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  className={`py-3 items-center ${item === value ? 'bg-blue-50' : ''}`}
+                  onPress={() => { onChange(item); setVisible(false); }}
+                >
+                  <Text className={`text-sm ${item === value ? 'text-blue-600 font-semibold' : 'text-gray-700'}`}>{item}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    </>
+  );
+}
+
+// ─── User picker ──────────────────────────────────────────────────────────────
+function UserPicker({ value, onChange, users }: { value: string; onChange: (id: string, name: string) => void; users: AppUser[] }) {
+  const [visible, setVisible] = useState(false);
+  const selected = users.find(u => u.uid === value);
+  return (
+    <>
+      <TouchableOpacity
+        className="border border-gray-300 rounded-lg px-3 py-2.5 bg-white flex-row justify-between items-center"
+        onPress={() => setVisible(true)}
+      >
+        <Text className={`text-sm ${selected ? 'text-gray-800' : 'text-gray-400'}`}>
+          {selected ? `${selected.name} (${selected.role})` : 'Seleccionar persona'}
+        </Text>
+        <Text className="text-gray-400">▾</Text>
+      </TouchableOpacity>
+      <Modal visible={visible} transparent animationType="fade">
+        <TouchableOpacity className="flex-1 bg-black/40 justify-center items-center" activeOpacity={1} onPress={() => setVisible(false)}>
+          <TouchableOpacity activeOpacity={1} className="bg-white rounded-2xl w-72 overflow-hidden" style={{ maxHeight: 360 }}>
+            <Text className="text-center text-sm font-semibold text-gray-700 py-3 border-b border-gray-100">Asignar a</Text>
+            <TouchableOpacity
+              className="py-3 px-4 border-b border-gray-50"
+              onPress={() => { onChange('', ''); setVisible(false); }}
+            >
+              <Text className="text-sm text-gray-400">Sin asignar</Text>
+            </TouchableOpacity>
+            <FlatList
+              data={users}
+              keyExtractor={u => u.uid}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  className={`py-3 px-4 border-b border-gray-50 ${item.uid === value ? 'bg-blue-50' : ''}`}
+                  onPress={() => { onChange(item.uid, item.name ?? item.email ?? ''); setVisible(false); }}
+                >
+                  <Text className={`text-sm font-medium ${item.uid === value ? 'text-blue-600' : 'text-gray-800'}`}>
+                    {item.name}
+                  </Text>
+                  <Text className="text-xs text-gray-400 capitalize">{item.role}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    </>
+  );
+}
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
 export default function CleaningFormScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'CleaningForm'>>();
@@ -73,13 +225,15 @@ export default function CleaningFormScreen() {
 
   const [form, setForm] = useState<CleaningFormData>(DEFAULT_FORM);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
     const init = async () => {
-      const unitList = await getUnits();
+      const [unitList, userList] = await Promise.all([getUnits(), getUsers()]);
       setUnits(unitList);
+      setUsers(userList);
 
       if (isEditing) {
         const cleaning = await getCleaning(route.params.cleaningId!);
@@ -95,10 +249,6 @@ export default function CleaningFormScreen() {
 
   const set = (field: keyof CleaningFormData, value: any) =>
     setForm(prev => ({ ...prev, [field]: value }));
-
-  const selectUnit = (unit: Unit) => {
-    setForm(prev => ({ ...prev, unitId: unit.id, unitName: unit.name }));
-  };
 
   const handleSave = async () => {
     if (!form.unitId) { Alert.alert('Error', 'Selecciona un apartamento'); return; }
@@ -128,7 +278,7 @@ export default function CleaningFormScreen() {
             <TouchableOpacity
               key={u.id}
               className={`px-3 py-2 rounded-lg border ${form.unitId === u.id ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'}`}
-              onPress={() => selectUnit(u)}
+              onPress={() => setForm(prev => ({ ...prev, unitId: u.id, unitName: u.name }))}
             >
               <Text className={`text-sm ${form.unitId === u.id ? 'text-white' : 'text-gray-700'}`}>{u.name}</Text>
             </TouchableOpacity>
@@ -151,17 +301,37 @@ export default function CleaningFormScreen() {
       </Field>
 
       <View className="flex-row gap-3">
-        <View className="flex-1"><Field label="Fecha"><Input value={form.scheduledDate} onChangeText={v => set('scheduledDate', v)} placeholder="2026-06-10" /></Field></View>
-        <View className="flex-1"><Field label="Hora"><Input value={form.scheduledTime} onChangeText={v => set('scheduledTime', v)} placeholder="10:00" /></Field></View>
+        <View className="flex-1">
+          <Field label="Fecha">
+            <CalendarPicker value={form.scheduledDate} onChange={v => set('scheduledDate', v)} />
+          </Field>
+        </View>
+        <View className="flex-1">
+          <Field label="Hora">
+            <TimePicker value={form.scheduledTime} onChange={v => set('scheduledTime', v)} />
+          </Field>
+        </View>
       </View>
 
       <View className="flex-row gap-3">
-        <View className="flex-1"><Field label="Salida huésped"><Input value={form.guestCheckout} onChangeText={v => set('guestCheckout', v)} placeholder="11:00" /></Field></View>
-        <View className="flex-1"><Field label="Entrada huésped"><Input value={form.guestCheckin} onChangeText={v => set('guestCheckin', v)} placeholder="15:00" /></Field></View>
+        <View className="flex-1">
+          <Field label="Salida huésped">
+            <TimePicker value={form.guestCheckout ?? ''} onChange={v => set('guestCheckout', v)} />
+          </Field>
+        </View>
+        <View className="flex-1">
+          <Field label="Entrada huésped">
+            <TimePicker value={form.guestCheckin ?? ''} onChange={v => set('guestCheckin', v)} />
+          </Field>
+        </View>
       </View>
 
-      <Field label="Asignada a (nombre)">
-        <Input value={form.assignedToName} onChangeText={v => set('assignedToName', v)} placeholder="Nombre de la limpiadora" />
+      <Field label="Asignada a">
+        <UserPicker
+          value={form.assignedToId ?? ''}
+          onChange={(id, name) => setForm(prev => ({ ...prev, assignedToId: id, assignedToName: name }))}
+          users={users}
+        />
       </Field>
 
       <Field label="Notas">
