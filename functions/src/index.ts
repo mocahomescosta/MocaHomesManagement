@@ -272,9 +272,11 @@ export const syncLodgifyBookings = functions
         const unit = await resolveUnitId(r.property_id ?? r.propertyId);
         const arrivalDate = (r.arrival ?? r.date_arrival ?? '').split('T')[0];
         const departureDate = (r.departure ?? r.date_departure ?? '').split('T')[0];
-        const status = r.status ?? 'booked';
-        const source = r.source ?? r.channel_name ?? 'direct';
-        const guests = r.guest_count ?? r.people ?? 0;
+        const status = (r.status ?? 'booked').toLowerCase();
+        const source = (r.source ?? r.channel_name ?? 'direct').toLowerCase();
+        const guests = r.rooms
+          ? r.rooms.reduce((s: number, rm: any) => s + (rm.people ?? 0), 0)
+          : (r.guest_count ?? r.people ?? 0);
 
         if (!arrivalDate || !departureDate) continue;
 
@@ -344,9 +346,11 @@ export const syncLodgifyHourly = onScheduleV2(
           unitName: unit?.unitName ?? r.property_name ?? '',
           arrivalDate,
           departureDate,
-          status: r.status ?? 'booked',
-          source: r.source ?? r.channel_name ?? 'direct',
-          guests: r.guest_count ?? r.people ?? 0,
+          status: (r.status ?? 'booked').toLowerCase(),
+          source: (r.source ?? r.channel_name ?? 'direct').toLowerCase(),
+          guests: r.rooms
+            ? r.rooms.reduce((s: number, rm: any) => s + (rm.people ?? 0), 0)
+            : (r.guest_count ?? r.people ?? 0),
           guestName: r.guest?.name ?? r.guest_name ?? '',
           specialRequests: r.special_requests ?? '',
           currencyCode: r.currency_code ?? 'EUR',
