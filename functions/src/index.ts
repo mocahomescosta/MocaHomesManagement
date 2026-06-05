@@ -300,6 +300,27 @@ export const syncLodgifyBookings = functions
         const snap = await bookingRef.get();
         if (!snap.exists) {
           await bookingRef.set({ ...bookingData, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+          // Auto-create cleaning for departure date
+          if (bookingData.departureDate && bookingData.unitId && ['booked', 'open_bill', 'tentative'].includes(bookingData.status)) {
+            const existingCleaning = await db.collection('cleanings')
+              .where('bookingId', '==', String(r.id))
+              .limit(1).get();
+            if (existingCleaning.empty) {
+              await db.collection('cleanings').add({
+                bookingId: String(r.id),
+                unitId: bookingData.unitId,
+                unitName: bookingData.unitName,
+                scheduledDate: bookingData.departureDate,
+                status: 'pendiente',
+                assignedToId: null,
+                assignedToName: null,
+                notes: '',
+                checklist: [],
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            }
+          }
         } else {
           await bookingRef.update(bookingData);
         }
@@ -556,7 +577,30 @@ export const onNewBooking = onDocumentCreated(
   { document: 'bookings/{bookingId}', region: 'europe-west1' },
   async (event) => {
     const booking = event.data?.data();
-    if (!booking || !['booked', 'open_bill'].includes(booking.status)) return;
+    if (!booking || !['booked', 'open_bill', 'tentative'].includes(booking.status)) return;
+
+    // Auto-create a cleaning for the departure date
+    if (booking.departureDate && booking.unitId) {
+      const existingCleaning = await db.collection('cleanings')
+        .where('bookingId', '==', event.params.bookingId)
+        .limit(1).get();
+
+      if (existingCleaning.empty) {
+        await db.collection('cleanings').add({
+          bookingId: event.params.bookingId,
+          unitId: booking.unitId,
+          unitName: booking.unitName ?? '',
+          scheduledDate: booking.departureDate,
+          status: 'pendiente',
+          assignedToId: null,
+          assignedToName: null,
+          notes: '',
+          checklist: [],
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    }
 
     const tokens = await getTokensByRole('Manager');
     await sendNotifications(
