@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, ActivityIndicator, SectionList,
+  View, Text, TouchableOpacity, ActivityIndicator, SectionList, Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useCleanings } from '../../hooks/useCleanings';
 import { Cleaning, CleaningStatus } from '../../types';
 
@@ -76,6 +77,20 @@ function formatDate(iso: string) {
 export default function CleaningsListScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { cleanings, loading } = useCleanings();
+  const [generating, setGenerating] = useState(false);
+
+  const handleGenerateCleanings = async () => {
+    setGenerating(true);
+    try {
+      const fn = httpsCallable(getFunctions(), 'generateCleaningsFromBookings');
+      const result = await fn({}) as any;
+      Alert.alert('Listo', `${result.data.created} limpiezas creadas, ${result.data.skipped} ya existían`);
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'No se pudieron generar las limpiezas');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   if (loading) {
     return <View className="flex-1 items-center justify-center bg-gray-50"><ActivityIndicator size="large" color="#2563eb" /></View>;
@@ -104,6 +119,16 @@ export default function CleaningsListScreen() {
         }
         contentContainerStyle={{ paddingTop: 8, paddingBottom: 100 }}
       />
+      <TouchableOpacity
+        className="absolute bottom-6 left-6 bg-white border border-gray-200 px-4 h-14 rounded-full items-center justify-center shadow-md flex-row gap-2"
+        onPress={handleGenerateCleanings}
+        disabled={generating}
+      >
+        {generating
+          ? <ActivityIndicator color="#2563eb" size="small" />
+          : <Text className="text-blue-600 font-semibold">🧹 Generar limpiezas</Text>
+        }
+      </TouchableOpacity>
       <TouchableOpacity
         className="absolute bottom-6 right-6 bg-blue-600 w-14 h-14 rounded-full items-center justify-center shadow-lg"
         onPress={() => navigation.navigate('CleaningForm', {})}

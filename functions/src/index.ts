@@ -392,6 +392,49 @@ export const syncLodgifyHourly = onScheduleV2(
   }
 );
 
+// ─── HTTP: generate cleanings for all active bookings that don't have one ─────
+
+export const generateCleaningsFromBookings = functions
+  .runWith({})
+  .https.onCall(async (_data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Auth required');
+
+    const bookingsSnap = await db.collection('bookings')
+      .where('status', 'in', ['booked', 'open_bill', 'tentative'])
+      .get();
+
+    let created = 0;
+    let skipped = 0;
+
+    for (const doc of bookingsSnap.docs) {
+      const booking = doc.data();
+      if (!booking.departureDate || !booking.unitId) { skipped++; continue; }
+
+      const existing = await db.collection('cleanings')
+        .where('bookingId', '==', doc.id)
+        .limit(1).get();
+
+      if (!existing.empty) { skipped++; continue; }
+
+      await db.collection('cleanings').add({
+        bookingId: doc.id,
+        unitId: booking.unitId,
+        unitName: booking.unitName ?? '',
+        scheduledDate: booking.departureDate,
+        status: 'pendiente',
+        assignedToId: null,
+        assignedToName: null,
+        notes: '',
+        checklist: [],
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      created++;
+    }
+
+    return { created, skipped };
+  });
+
 // ─── HTTP: import Lodgify properties as units in Firestore ────────────────────
 
 export const importLodgifyProperties = functions
