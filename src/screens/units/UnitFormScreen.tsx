@@ -92,7 +92,13 @@ export default function UnitFormScreen() {
     getUnit(route.params.unitId!).then(unit => {
       if (unit) {
         const { id, createdAt, updatedAt, ...rest } = unit;
-        setForm(rest);
+        setForm({
+          ...DEFAULT_FORM,
+          ...rest,
+          address: { ...DEFAULT_FORM.address, ...(rest.address ?? {}) },
+          wifiInfo: { ...DEFAULT_FORM.wifiInfo, ...(rest.wifiInfo ?? {}) },
+          accessInfo: { ...DEFAULT_FORM.accessInfo, ...(rest.accessInfo ?? {}) },
+        });
       }
       setInitialLoading(false);
     });
